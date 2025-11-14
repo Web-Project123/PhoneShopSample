@@ -15,9 +15,10 @@ namespace Shop.API.Controllers
         {
             var products = new List<Product>
             {
-                new Product { Id = 1, Name = "Laptop", Price = 35000000, Stock = 5 },
-                new Product { Id = 2, Name = "Mouse", Price = 150000, Stock = 20 },
-                new Product { Id = 3, Name = "Keyboard", Price = 450000, Stock = 10 }
+                new Product { Id = 1, Name = "Iphone", Price = 300, Stock = 5 },
+                new Product { Id = 2, Name = "Samsong",  Price = 200,   Stock = 20 },
+                new Product { Id = 3, Name = "Xiaomi", Price = 100, Stock = 50 },
+                new Product { Id = 4, Name = "Huawei", Price = 50, Stock = 2 }
             };
 
             return Ok(products);
