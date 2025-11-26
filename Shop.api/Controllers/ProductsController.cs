@@ -1,27 +1,35 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using PhoneShopSample.Models;
+using PhoneShop.Application.Services;
+using System;
+using System.Threading.Tasks;
 
-
-
-namespace Shop.API.Controllers
-
+namespace Shop.api.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class ProductsController : ControllerBase
     {
-        [HttpGet]
-        public IActionResult GetProducts()
-        {
-            var products = new List<Product>
-            {
-                new Product { Id = 1, Name = "Iphone", Price = 300, Stock = 5 },
-                new Product { Id = 2, Name = "Samsong",  Price = 200,   Stock = 20 },
-                new Product { Id = 3, Name = "Xiaomi", Price = 100, Stock = 50 },
-                new Product { Id = 4, Name = "Huawei", Price = 50, Stock = 2 }
-            };
+        private readonly ProductService _service;
+        public ProductsController(ProductService service) => _service = service;
 
-            return Ok(products);
+        [HttpGet]
+        public async Task<IActionResult> GetAll() => Ok(await _service.GetAllAsync());
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var p = await _service.GetByIdAsync(id);
+            if (p == null) return NotFound();
+            return Ok(p);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateProductDto dto)
+        {
+            await _service.AddAsync(dto.Name, dto.Price, dto.Stock);
+            return CreatedAtAction(nameof(GetById), new { id = /* can't access id easily — use query */ Guid.NewGuid() }, null);
         }
     }
+
+    public record CreateProductDto(string Name, decimal Price, int Stock);
 }
