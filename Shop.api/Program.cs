@@ -1,5 +1,11 @@
-using Serilog;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using PhoneShop.Application.Interfaces;
+using PhoneShop.Application.Services;
+using PhoneShop.Infrastructure.Data;
+using PhoneShop.Infrastructure.Repositories;
+using Serilog;
+using System;
 
 var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -33,6 +39,15 @@ try
         c.SwaggerDoc("v1", new OpenApiInfo { Title = "PhoneShop API", Version = "v1" });
     });
 
+    // repository
+    builder.Services.AddScoped<IProductRepository, ProductRepository>();
+
+    // AppDb
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+    builder.Services.AddScoped<ProductService>();
+
     var app = builder.Build();
 
     // Middleware
@@ -43,7 +58,7 @@ try
         app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "PhoneShop API v1"));
     }
 
-    app.UseSerilogRequestLogging(); // ??? ?????? ??????????
+    app.UseSerilogRequestLogging(); 
 
     app.UseRouting();
     app.UseAuthorization();
@@ -60,4 +75,15 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+
+
+
+
+
+
+
+
+
+
 
