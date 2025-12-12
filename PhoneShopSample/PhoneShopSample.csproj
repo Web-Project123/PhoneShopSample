@@ -9,6 +9,11 @@
 
   <ItemGroup>
     <Folder Include="Models\" />
+	  
   </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\src\PhoneShop.Application\PhoneShop.Application.csproj" />
+		<ProjectReference Include="..\src\PhoneShop.Infrastructure\PhoneShop.Infrastructure.csproj" />
+	</ItemGroup>
 
 </Project>
