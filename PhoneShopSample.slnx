@@ -1,9 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/PhoneShop.Application/PhoneShop.Application.csproj" />
-    <Project Path="src/PhoneShop.Domain/PhoneShop.Domain.csproj" />
-    <Project Path="src/PhoneShop.Infrastructure/PhoneShop.Infrastructure.csproj" />
-  </Folder>
-  <Project Path="PhoneShopSample/PhoneShopSample.csproj" />
-  <Project Path="Shop.api/Shop.api.csproj" Id="4dee2b25-bc76-4eb0-8354-ad39855bd07a" />
-</Solution>
