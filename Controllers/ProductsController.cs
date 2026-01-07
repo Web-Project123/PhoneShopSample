@@ -16,12 +16,27 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet]
-        public List<Product> Get() => _service.GetAllProducts();
+        public IActionResult Get()
+        {
+            var products = _service.GetAllProducts();
+            return Ok(products);
+        }
 
         [HttpGet("{id}")]
-        public Product? Get(int id) => _service.GetProduct(id);
+        public IActionResult Get(int id)
+        {
+            var product = _service.GetProduct(id);
+            if (product == null)
+                return NotFound();
+
+            return Ok(product);
+        }
 
         [HttpPost]
-        public void Post([FromBody] Product product) => _service.AddProduct(product);
+        public IActionResult Post([FromBody] Product product)
+        {
+            _service.AddProduct(product);
+            return Ok(product);
+        }
     }
 }
