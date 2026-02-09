@@ -1,0 +1,322 @@
+SecureApi
+│
+├── Controllers
+│   └── AuthController.cs
+│
+├── Models
+│   ├── User.cs
+│   ├── Role.cs
+│   ├── Permission.cs
+│   ├── UserRole.cs
+│   └── RolePermission.cs
+│
+├── Data
+│   └── AppDbContext.cs
+│
+├── Services
+│   └── JwtService.cs
+│
+├── Authorization
+│   └── HasPermissionAttribute.cs
+│
+├── Program.cs
+├── appsettings.json
+├── SecureApi.csproj
+└── README.md
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0-preview" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0-preview">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0-preview" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+  </ItemGroup>
+
+</Project>
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using SecureApi.Data;
+using SecureApi.Services;
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.AddScoped<JwtService>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+.AddJwtBearer(opt =>
+{
+    opt.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+    };
+});
+
+builder.Services.AddAuthorization(opt =>
+{
+    opt.AddPolicy("user.create",
+        p => p.RequireClaim("permission", "user.create"));
+
+    opt.AddPolicy("user.delete",
+        p => p.RequireClaim("permission", "user.delete"));
+});
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+{
+  "Jwt": {
+    "Key": "CHANGE_THIS_SUPER_SECRET_KEY"
+  },
+  "ConnectionStrings": {
+    "Default": "Server=.;Database=SecureApiDb;Trusted_Connection=True;TrustServerCertificate=True"
+  }
+}
+namespace SecureApi.Models;
+
+public class User
+{
+    public Guid Id { get; set; }
+    public string Username { get; set; } = null!;
+    public string PasswordHash { get; set; } = null!;
+    public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+}
+namespace SecureApi.Models;
+
+public class Role
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = null!;
+    public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+    public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+}
+namespace SecureApi.Models;
+
+public class Permission
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = null!;
+}
+namespace SecureApi.Models;
+
+public class UserRole
+{
+    public Guid UserId { get; set; }
+    public User User { get; set; } = null!;
+
+    public Guid RoleId { get; set; }
+    public Role Role { get; set; } = null!;
+}
+namespace SecureApi.Models;
+
+public class RolePermission
+{
+    public Guid RoleId { get; set; }
+    public Role Role { get; set; } = null!;
+
+    public Guid PermissionId { get; set; }
+    public Permission Permission { get; set; } = null!;
+}
+using Microsoft.EntityFrameworkCore;
+using SecureApi.Models;
+
+namespace SecureApi.Data;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        b.Entity<UserRole>().HasKey(x => new { x.UserId, x.RoleId });
+        b.Entity<RolePermission>().HasKey(x => new { x.RoleId, x.PermissionId });
+    }
+}
+using Microsoft.IdentityModel.Tokens;
+using SecureApi.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+namespace SecureApi.Services;
+
+public class JwtService
+{
+    private readonly IConfiguration _config;
+
+    public JwtService(IConfiguration config)
+    {
+        _config = config;
+    }
+
+    public string Generate(User user, IEnumerable<string> permissions)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.UniqueName, user.Username)
+        };
+
+        claims.AddRange(permissions.Select(p => new Claim("permission", p)));
+
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
+
+        var token = new JwtSecurityToken(
+            expires: DateTime.UtcNow.AddMinutes(30),
+            claims: claims,
+            signingCredentials:
+                new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
+using Microsoft.AspNetCore.Authorization;
+
+namespace SecureApi.Authorization;
+
+public class HasPermissionAttribute : AuthorizeAttribute
+{
+    public HasPermissionAttribute(string permission)
+    {
+        Policy = permission;
+    }
+}
+using BCrypt.Net;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SecureApi.Data;
+using SecureApi.Services;
+
+namespace SecureApi.Controllers;
+
+[ApiController]
+[Route("api/auth")]
+public class AuthController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly JwtService _jwt;
+
+    public AuthController(AppDbContext db, JwtService jwt)
+    {
+        _db = db;
+        _jwt = jwt;
+    }
+
+    [HttpPost("login")]
+    public IActionResult Login(string username, string password)
+    {
+        var user = _db.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .ThenInclude(r => r.RolePermissions)
+            .ThenInclude(rp => rp.Permission)
+            .FirstOrDefault(x => x.Username == username);
+
+        if (user == null ||
+            !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+            return Unauthorized();
+
+        var permissions = user.UserRoles
+            .SelectMany(ur => ur.Role.RolePermissions)
+            .Select(rp => rp.Permission.Name)
+            .Distinct();
+
+        return Ok(new
+        {
+            token = _jwt.Generate(user, permissions)
+        });
+    }
+}
+SecureApi
+│
+├── Controllers
+│   └── AuthController.cs
+│
+├── Models
+│   ├── User.cs
+│   ├── Role.cs
+│   ├── Permission.cs
+│   ├── UserRole.cs
+│   └── RolePermission.cs
+│
+├── Data
+│   └── AppDbContext.cs
+│
+├── Services
+│   └── JwtService.cs
+│
+├── Authorization
+│   └── HasPermissionAttribute.cs
+│
+├── Program.cs
+├── appsettings.json
+└── SecureApi.csproj
+[HasPermission("user.create")]
+[HttpPost]
+public IActionResult CreateUser()
+{
+    return Ok();
+}
+User
+ └── Roles
+      └── Permissions
+user.create
+user.delete
+user.view
+role.assign
+{
+  "Jwt": {
+    "Key": "SUPER_SECRET_KEY_CHANGE_THIS"
+  },
+  "ConnectionStrings": {
+    "Default": "Server=.;Database=SecureApiDb;Trusted_Connection=True;"
+  }
+}
+git clone https://github.com/Web-Project123/<repo-name>.git
+cd <repo-name>/SecureApi
+dotnet restore
+dotnet run
+POST /api/auth/login
+{
+  "username": "admin",
+  "password": "123456"
+}
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+Authorization: Bearer <JWT_TOKEN>
+[HasPermission("user.delete")]
+dotnet restore
+dotnet run
+git add .
+git commit -m "Initial ASP.NET Core (.NET 10) JWT RBAC project"
+git push
